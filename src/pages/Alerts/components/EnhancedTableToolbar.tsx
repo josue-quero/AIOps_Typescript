@@ -2,13 +2,31 @@ import React, { useState } from "react";
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Toolbar from '@mui/material/Toolbar';
-import DownloadCSV from "../../common/DownloadCSV";
+import DownloadCSV from "common/DownloadCSV";
 import FilterListIcon from '@mui/icons-material/FilterList';
 import Tooltip from '@mui/material/Tooltip';
 import PropTypes from 'prop-types';
 import IconButton from '@mui/material/IconButton';
+import { ExcelRow } from "pages/Feedback/Feedback";
 
-function EnhancedTableToolbar(props) {
+type Row = {
+    partitionKey: string;
+    timestamp: string;
+    description: string;
+    status: string;
+    metric: string;
+    value: number;
+    eventType: string;
+  }
+
+type EnhancedToolbarProps = {
+    filterOptions: boolean;
+    handleHideOptions: () => void;
+    handleDownload: () => Promise<ExcelRow[]> | Promise<Row[]>;
+    title: string;
+}
+
+function EnhancedTableToolbar(props: EnhancedToolbarProps) {
   const [loading, setLoading] = useState(false);
 
   const downloadMediator = async () => {
@@ -18,6 +36,11 @@ function EnhancedTableToolbar(props) {
       setLoading(false);
       return tempData;
   }
+
+  // NOTE: could not work, original is props.filterOptions && "#000000"
+  const filterListStyle = {
+    color: props.filterOptions ? "#000000" : ""
+  };
 
   return (
       <Toolbar
@@ -37,7 +60,7 @@ function EnhancedTableToolbar(props) {
           </Typography>
           <Tooltip title="Filter table">
               <IconButton onClick={(e) => { props.handleHideOptions() }}>
-                  <FilterListIcon sx={{ color: props.filterOptions && "#000000" }} />
+                  <FilterListIcon sx={{ filterListStyle }} />
               </IconButton>
           </Tooltip>
           <DownloadCSV handleOnClick={downloadMediator} mode={props.title}/>

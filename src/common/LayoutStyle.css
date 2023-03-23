@@ -1,0 +1,4 @@
+.list-item--active {
+    border-left: 4px solid #6aa0f7;
+    margin-left: 2px;
+}

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Outlet, Link as RouterLink, LinkProps as RouterLinkProps, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -25,12 +25,6 @@ import Badge from '@mui/material/Badge';
 import FeedbackIcon from '@mui/icons-material/Feedback';
 
 const drawerWidth = 80;
-
-interface NavItem {
-  name: string;
-  icon: OverridableComponent<SvgIconTypeMap<{}, "svg">>;
-  link: string;
-}
 
 const navItems = [
   {
@@ -73,7 +67,24 @@ const selectedStyle = {
 
 const settings = ['Account', 'Logout'];
 
-const ClippedDrawer = (changes: number) => {
+type LayoutProps = {
+  changes: number;
+}
+
+type navItem = {
+  name: string;
+  icon: JSX.Element;
+  link: string;
+}
+
+const Link = React.forwardRef<HTMLAnchorElement, RouterLinkProps>(function Link(
+  itemProps,
+  ref,
+) {
+  return <RouterLink ref={ref} {...itemProps} role={undefined} />;
+});
+
+const Layout = ({changes}: LayoutProps) => {
   // const theme = useTheme();
   // const [open, setOpen] = React.useState(false);
 
@@ -81,11 +92,11 @@ const ClippedDrawer = (changes: number) => {
   console.log("Path name", pathName);
   const [inPage, setInPage] = React.useState(true);
   const [link, setLink] = React.useState('');
-  const [anchorElUser, setAnchorElUser] = React.useState<EventTarget & HTMLInputElement | null>(null);
+  const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLButtonElement>(null);
   const navigate = useNavigate();
   const { logout, error, loading } = useLogout();
 
-  const handleOpenUserMenu = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOpenUserMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorElUser(event.currentTarget);
   };
 
@@ -93,7 +104,7 @@ const ClippedDrawer = (changes: number) => {
     setAnchorElUser(null);
   };
 
-  const handlePageChange = (item: NavItem) => {
+  const handlePageChange = (item: navItem) => {
     if (item.link === link) {
       return;
     }
@@ -132,7 +143,13 @@ const ClippedDrawer = (changes: number) => {
           <List sx={{ marginTop: 1 }}>
             {navItems.map((item, index) => (
               <ListItem key={item.name} disablePadding>
-                <ListItemButton component={Link} sx={{ justifyContent: 'center', ...(pathName === item.link && selectedStyle),}}
+                <ListItemButton
+                  component={Link}
+                  to={item.link}
+                  sx={{
+                    justifyContent: 'center',
+                    ...(pathName === item.link && selectedStyle),
+                  }}
                   onClick={() => handlePageChange(item)}
                 >
                   {item.name === 'Feed' ? (
@@ -227,4 +244,4 @@ const ClippedDrawer = (changes: number) => {
   );
 }
 
-export default ClippedDrawer;
+export default Layout;

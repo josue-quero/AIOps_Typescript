@@ -46,7 +46,12 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
   },
 }));
 
-function Row(props) {
+type RowProps = {
+  row: Row;
+  key: number;
+}
+
+function Row(props: RowProps) {
   const { row } = props;
 
   return (
@@ -71,7 +76,7 @@ function Row(props) {
               sx={{
                 fontSize: '1.2rem',
                 marginLeft: '4px',
-                color: importanceIcons[row.status],
+                color: importanceIcons[row.status as keyof typeof importanceIcons],
               }}
             />
           </div>
@@ -81,17 +86,36 @@ function Row(props) {
   );
 }
 
-Row.propTypes = {
-  row: PropTypes.shape({
-    partitionKey: PropTypes.string.isRequired,
-    timestamp: PropTypes.string.isRequired,
-    description: PropTypes.string.isRequired,
-    metric: PropTypes.string.isRequired,
-    status: PropTypes.string.isRequired,
-  }).isRequired,
-};
+type Row = {
+  partitionKey: string;
+  timestamp: string;
+  description: string;
+  status: string;
+  metric: string;
+  value: number;
+  eventType: string;
+}
 
-export default function EnhancedTable(props) {
+export type Filter = {
+  Operation: string;
+  Field: string;
+  Value: string;
+  boolOp: string;
+}
+
+type EnhancedTableProps = {
+  rows: Row[];
+  isLoading: boolean;
+  start: number;
+  docsPerQuery: number;
+  onNextPage: () => Promise<void>;
+  disableNextButton: boolean;
+  onAdvancedFilter: (filters: Filter[]) => void;
+  clearFilters: () => void;
+  handleDownloadAll: () => Promise<Row[]>;
+}
+
+const EnhancedTable = (props: EnhancedTableProps) => {
   const [filterOptions, setFilterOptions] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -104,7 +128,7 @@ export default function EnhancedTable(props) {
   console.log("Current empty rows", emptyRows);
   // ---------------- HANDLERS ---------------
 
-  const handleChangePage = (event, newPage) => {
+  const handleChangePage = (event: unknown, newPage: number) => {
     console.log("Page to", newPage);
     let newStart = newPage * rowsPerPage;
     console.log("Start from", newStart);
@@ -125,8 +149,9 @@ export default function EnhancedTable(props) {
     }
   }, [props.rows])
 
-  const handleChangeRowsPerPage = (event) => {
-    setPage(parseInt(((page * rowsPerPage) / event.target.value), 10));
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // NOTE: original was setPage(parseInt(((page * rowsPerPage) / event.target.value), 10));
+    setPage((page * rowsPerPage) / parseInt(event.target.value, 10));
     setRowsPerPage(parseInt(event.target.value, 10));
   };
 
@@ -154,7 +179,7 @@ export default function EnhancedTable(props) {
 
   return (
     <Paper sx={{ width: '100%', mb: 2, overflow: 'hidden' }}>
-      <EnhancedTableToolbar filterOptions={filterOptions} handleHideOptions={handleHideOptions} handleDownload={props.handleDownloadAll} title={'Alerts'}/>
+      <EnhancedTableToolbar filterOptions={filterOptions} handleHideOptions={handleHideOptions} handleDownload={props.handleDownloadAll} title={'Alerts'} />
       <FilterOptions clearFilters={props.clearFilters} onAdvancedFilter={props.onAdvancedFilter} openFilter={filterOptions} setOpenFilter={setFilterOptions} />
       <TableContainer sx={{ maxHeight: "78vh" }}>
         <Table stickyHeader sx={{ maxHeight: "78vh", height: "78vh" }} aria-label="customized pagination table">
@@ -220,3 +245,5 @@ export default function EnhancedTable(props) {
     </Paper>
   );
 }
+
+export default EnhancedTable

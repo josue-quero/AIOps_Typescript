@@ -9,12 +9,29 @@ import FeedbackIcon from '@mui/icons-material/Feedback';
 import Typography from "@mui/material/Typography";
 import moment from "moment-timezone";
 import TableViewIcon from '@mui/icons-material/TableView';
-import AnomaliesTable from './AnomaliesTable';
+import AnomaliesTable from './components/AnomaliesTable';
+
+type Filter = {
+    Operation: string;
+    Field: string;
+    Value: string;
+    boolOp: string;
+}
+
+type Row = {
+    partitionKey: string;
+    timestamp: string;
+    description: string;
+    status: string;
+    metric: string;
+    value: number;
+    eventType: string;
+}
 
 export default function Alerts() {
     const docsPerQuery = 30;
     const [filters, setFilters] = useState('None');
-    const [rows, setRows] = useState(null);
+    const [rows, setRows] = useState<null | Row[]>(null);
     const [currentStart, setCurrentStart] = useState(0);
     const [continuationToken, setContinuationToken] = useState('None');
     const [disableNextButton, setDisableNextButton] = useState(false);
@@ -51,11 +68,11 @@ export default function Alerts() {
             .then((data) => {
                 console.log("Recovered data", data);
                 const totalRows = data.result;
-                
+
                 if (rows === null || currentStart === 0) {
                     setRows(totalRows);
                 } else {
-                    let tempPrevRow = [...rows];
+                    let tempPrevRow = [...rows] as Row[];
                     setRows(tempPrevRow.concat(totalRows));
                 }
                 setIsLoading(false);
@@ -79,7 +96,7 @@ export default function Alerts() {
         getTableAlerts();
     }, [filters]);
 
-    const handleChangeFilter = (filters) => {
+    const handleChangeFilter = (filters: Filter[]) => {
         console.log("Changing column filters");
         setDisableNextButton(false);
         setContinuationToken('None');
@@ -91,7 +108,7 @@ export default function Alerts() {
             if (i !== filters.length - 1) {
                 tempFilters += " " + filters[i + 1].boolOp + " ";
             }
-        } 
+        }
         console.log("New conditions from advanced filter change", tempFilters);
         setFilters(tempFilters);
     }
@@ -104,7 +121,7 @@ export default function Alerts() {
     }
 
     const handleDownloadAll = async () => {
-        let resultData = [];
+        let resultData = [] as Row[];
         await fetch('/getTableAlerts', {
             method: 'POST',
             body: JSON.stringify({

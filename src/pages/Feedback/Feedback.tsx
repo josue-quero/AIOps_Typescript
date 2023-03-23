@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { collection, query, orderBy, getDocs, startAfter, endBefore, limit, limitToLast, getCountFromServer, where } from "firebase/firestore";
+import { collection, query, orderBy, getDocs, startAfter, endBefore, limit, limitToLast, getCountFromServer, where, OrderByDirection, QueryDocumentSnapshot, DocumentData, FieldPath, WhereFilterOp, QueryConstraint } from "firebase/firestore";
 import { firestore } from '../../firebase/order-food';
 import Fade from "@mui/material/Fade";
 import Grid2 from "@mui/material/Unstable_Grid2/Grid2";
@@ -11,21 +11,52 @@ import Typography from "@mui/material/Typography";
 import moment from "moment-timezone";
 
 const feedbackColor = {
-    1: ["#007500", "Positive"],
+    "1": ["#007500", "Positive"],
     "-1": ["#f7584d", "Negative"],
-    0: ["#f5ce64", "Snoozed"],
+    "0": ["#f5ce64", "Snoozed"],
 };
 
-export default function Feedback({ topics }) {
-    const [feedback, setFeedback] = useState(null);
-    const [collectionCount, setCollectionCount] = useState(null);
-    const [lastDoc, setLastDoc] = useState('');
-    const [firstDoc, setFirstDoc] = useState('');
+type FeedbackProps = {
+    topics: string[] | null;
+}
+
+export type Row = { 
+    anomalyID: string;
+    server: string;
+    metric: string;
+    timestamp: string;
+    value: number;
+    feedback: { user: string; feedback: number; }[];
+    feedbackCount: number;
+}
+
+export type ExcelRow = { 
+    anomalyID: string;
+    server: string;
+    metric: string;
+    timestamp: string;
+    value: number;
+    feedback: string | null;
+    user: string | null;
+}
+
+export type Filter = {
+    Operation: string;
+    Field: string;
+    Value: string; 
+    boolOp: boolean;
+}
+
+const Feedback = ({topics}: FeedbackProps) => {
+    const [feedback, setFeedback] = useState<null | Row[]>(null);
+    const [collectionCount, setCollectionCount] = useState<null | number>(null);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | string>('');
+    const [firstDoc, setFirstDoc] = useState<QueryDocumentSnapshot<DocumentData> | string>('');
     const [currentStart, setCurrentStart] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [conditions, setConditions] = useState([]);
-    const [index, setIndex] = useState('Timestamp');
-    const [order, setOrder] = useState('desc');
+    const [conditions, setConditions] = useState<QueryConstraint[] | []>([]);
+    const [index, setIndex] = useState("Timestamp");
+    const [order, setOrder] = useState<OrderByDirection>("desc");
     const docsPerQuery = 30;
     console.log("Feedback rendering");
 
@@ -56,7 +87,7 @@ export default function Feedback({ topics }) {
         setCollectionCount(allDocs.data().count);
         console.log("Docs in feedback", documentSnapshots.docs);
         console.log("Collection count", allDocs.data().count);
-        let tempFeedback = [];
+        let tempFeedback: Row[] = [];
         documentSnapshots.forEach((doc) => {
             // doc.data() is never undefined for query doc snapshots
             let tempDoc = doc.data();
@@ -69,7 +100,7 @@ export default function Feedback({ topics }) {
                 feedback: tempDoc.feedback !== undefined ? Object.keys(tempDoc.feedback).map((user) => { return { user: user, feedback: tempDoc.feedback[user] } }) : [],
                 feedbackCount: tempDoc.feedback !== undefined ? Object.keys(tempDoc.feedback).length : 0,
             };
-            tempFeedback.push(tempRow);
+            tempFeedback.push(tempRow as Row);
         });
         console.log("Feedback parsed", tempFeedback);
         setFeedback(tempFeedback);
@@ -91,7 +122,7 @@ export default function Feedback({ topics }) {
         setCollectionCount(allDocs.data().count);
         console.log("Docs in feedback", documentSnapshots.docs);
         console.log("Collection count", allDocs.data().count);
-        let tempFeedback = [];
+        let tempFeedback: Row[] = [];
         documentSnapshots.forEach((doc) => {
             // doc.data() is never undefined for query doc snapshots
             let tempDoc = doc.data();
@@ -104,29 +135,29 @@ export default function Feedback({ topics }) {
                 feedback: tempDoc.feedback !== undefined ? Object.keys(tempDoc.feedback).map((user) => { return { user: user, feedback: tempDoc.feedback[user] } }) : [],
                 feedbackCount: tempDoc.feedback !== undefined ? Object.keys(tempDoc.feedback).length : 0,
             };
-            tempFeedback.push(tempRow);
+            tempFeedback.push(tempRow as Row);
         });
         console.log("Feedback parsed", tempFeedback);
         setFeedback(tempFeedback);
         setLoading(false);
     }, [firstDoc, conditions, topics, index, order]);
 
-    const handleChangeFilter = (filters) => {
+    const handleChangeFilter = (filters: Filter[]) => {
         console.log("Changing column filters");
         setCurrentStart(0);
         setFirstDoc('');
         setLastDoc('');
         let tempOrder = "Timestamp";
-        let tempConditions = filters.map((filter, index) => {
+        let tempConditions = filters.map((filter: Filter, index: any) => {
             if (filter.Operation !== "==") {
                 console.log("Filter where operation not equal to ==", filter)
                 tempOrder = filter.Field;
             }
             console.log("Condition number ", index, filter.Field, filter.Operation, filter.Value);
             if (filter.Field === "value") {
-                return where(filter.Field, filter.Operation, parseInt(filter.Value));
+                return where(filter.Field, filter.Operation as WhereFilterOp, parseInt(filter.Value));
             }
-            return where(filter.Field, filter.Operation, filter.Value);
+            return where(filter.Field, filter.Operation as WhereFilterOp, filter.Value);
         })
         console.log("New conditions from advanced filter change", tempConditions);
         console.log(tempOrder);
@@ -135,7 +166,7 @@ export default function Feedback({ topics }) {
     }
 
     const downloadAll = async () => {
-        let tempFeedback = [];
+        let tempFeedback: ExcelRow[] = [];
         let downloadQuery;
         downloadQuery = query(collection(firestore, "aiops"), ...conditions, orderBy(index, order));
         const documentSnapshots = await getDocs(downloadQuery);
@@ -150,7 +181,7 @@ export default function Feedback({ topics }) {
                         metric: tempDoc.anomalyType,
                         timestamp: moment.unix(tempDoc.Timestamp.seconds).format('LLLL'),
                         value: tempDoc.value,
-                        feedback: feedbackColor[tempDoc.feedback[user]][1],
+                        feedback: feedbackColor[tempDoc.feedback[user] as keyof typeof feedbackColor][1],
                         user: user,
                     };
                     tempFeedback.push(tempRow);
@@ -172,7 +203,7 @@ export default function Feedback({ topics }) {
         return tempFeedback;
     };
 
-    const onRequestSort = (event, property) => {
+    const onRequestSort = () => {
         if (order === "asc") {
             setOrder("desc");
         } else {
@@ -242,3 +273,5 @@ export default function Feedback({ topics }) {
         </>
     );
 }
+
+export default Feedback

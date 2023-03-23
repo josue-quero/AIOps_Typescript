@@ -1,13 +1,10 @@
-import { useState, useRef, forwardRef, useEffect } from "react";
+import React, { useState, forwardRef } from "react";
 import {
   Box,
-  OutlinedInput,
   InputLabel,
   MenuItem,
   FormControl,
-  ListItemText,
   Select,
-  Checkbox,
   Button,
   TextField,
   Dialog,
@@ -26,23 +23,19 @@ import AddIcon from '@mui/icons-material/Add';
 import ClearIcon from '@mui/icons-material/Clear';
 import Collapse from '@mui/material/Collapse'
 import { TransitionGroup } from 'react-transition-group';
-import React from "react";
+import { useEffect } from "react";
 import { TransitionProps } from "@mui/material/transitions";
-import { Filter } from "pages/Alerts/components/AnomaliesTable";
 
-const ITEM_HEIGHT = 48;
-const ITEM_PADDING_TOP = 8;
-const MenuProps = {
-  PaperProps: {
-    style: {
-      maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-      width: 250,
-    },
+const Transition = React.forwardRef(function Transition(
+  props: TransitionProps & {
+    children: React.ReactElement<any, any>;
   },
-};
+  ref: React.Ref<unknown>,
+) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 const timeframes = [
-  "",
   "Last Hour",
   "Last 24 Hours",
   "Last 7 Days",
@@ -60,26 +53,34 @@ const dateLimits = {
   "Last 7 Days": moment().subtract(7, "days"),
   "Last 31 Days": moment().subtract(1, "months"),
   "Last 365 Days": moment().subtract(1, "years"),
+  "Current Month": moment().startOf("month"),
+  "Current Year": moment().startOf("year"),
 };
 
-const Transition = React.forwardRef(function Transition(
-  props: TransitionProps & {
-    children: React.ReactElement<any, any>;
-  },
-  ref: React.Ref<unknown>,
-) {
-  return <Slide direction="up" ref={ref} {...props} />;
-});
+type DateLimits = {
+  "Last Hour": moment.Moment,
+  "Last 24 Hours": moment.Moment,
+  "Last 7 Days": moment.Moment,
+  "Last 31 Days": moment.Moment,
+  "Last 365 Days": moment.Moment,
+  "Current Month": moment.Moment;
+  "Current Year": moment.Moment;
+}
 
 type InputField = {
-  boolOp: string;
   Field: string;
   Operation: string;
-  Value: string;
+  Value: string | Date;
+}
+
+type FirebaseFilter = {
+  Operation: string;
+  Field: string;
+  Value: string; 
+  boolOp: boolean;
 }
 
 type ErrorFilter = {
-  boolOp: boolean;
   Field: boolean;
   Operation: boolean;
   Value: boolean;
@@ -92,29 +93,43 @@ type BackupValues = {
   timeframe: string;
 }
 
+type FilterOptionsProps = {
+  clearFilters: () => void;
+  onAdvancedFilter: (filters: FirebaseFilter[]) => void;
+  openFilter: boolean;
+  setOpenFilter: React.Dispatch<React.SetStateAction<boolean>>;
+};
+
+type Filter = {
+  equality: number;
+  inequality: number;
+  count: number;
+}
+
 interface FilterAppearences {
-  rowKey: Filter;
-  Description: Filter;
   Timestamp: Filter;
-  Event_Name: Filter;
-  Metric_Name: Filter;
+  rowKey: Filter;
+  anomalyType: Filter;
+  Server_ID: Filter;
+  value: Filter;
   General: Filter;
   None: Filter;
 }
 
-type FilterOptionsProps = {
-  clearFilters: () => void;
-  onAdvancedFilter: (filters: Filter[]) => void;
-  openFilter: boolean;
-  setOpenFilter: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-function FilterOptions(props: FilterOptionsProps) {
-  const clearFilters = props.clearFilters;
+const TableFilterOptions = (props: FilterOptionsProps) => {
   const [timeframe, setTimeframe] = useState('Last Hour');
+  const clearFilters = props.clearFilters;
+  const onAdvancedFilter = props.onAdvancedFilter;
+  const [inputFields, setInputFields] = useState<InputField[]>([
+    { Field: 'None', Operation: 'None', Value: '' }])
+  const [errorDate, setErrorDate] = useState(false);
+  const [errorFilters, setErrorFilters] = useState([
+    { Field: false, Operation: false, Value: false }
+  ]);
+  const [errorFilter, setErrorFilter] = useState(false);
+  const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [errorDate, setErrorDate] = useState(false);
   const [prevTimeframe, setPrevTimeframe] = useState('Last Hour');
   const [backupValues, setBackupValues] = useState<BackupValues>({
     inputFields: [],
@@ -123,24 +138,27 @@ function FilterOptions(props: FilterOptionsProps) {
     timeframe: '',
   });
   const [prevRangeTime, setPrevRangeTime] = useState({ startDate: '', endDate: '' });
-  const [inputFields, setInputFields] = useState([
-    { boolOp: 'None', Field: 'None', Operation: 'None', Value: '' }])
-  const [errorFilters, setErrorFilters] = useState([
-    { boolOp: false, Field: false, Operation: false, Value: false }
-  ]);
   const [filterAppearences, setFilterAppearences] = useState({
-    rowKey: { equality: 0, inequality: 0, count: 0 },
-    Description: { equality: 0, inequality: 0, count: 0 },
     Timestamp: { equality: 0, inequality: 0, count: 0 },
-    Event_Name: { equality: 0, inequality: 0, count: 0 },
-    Metric_Name: { equality: 0, inequality: 0, count: 0 },
+    rowKey: { equality: 0, inequality: 0, count: 0 },
+    anomalyType: { equality: 0, inequality: 0, count: 0 },
+    Server_ID: { equality: 0, inequality: 0, count: 0 },
+    value: { equality: 0, inequality: 0, count: 0 },
     General: { equality: 0, inequality: 0, count: 0 },
     None: { equality: 0, inequality: 0, count: 0 }
   })
-  const onAdvancedFilter = props.onAdvancedFilter;
-  const [errorFilter, setErrorFilter] = useState(false);
 
-  const [open, setOpen] = useState(false);
+  const handleOpen = () => {
+    setPrevRangeTime({ startDate: startDate, endDate: endDate });
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setTimeframe(prevTimeframe);
+    setOpen(false);
+    setStartDate(prevRangeTime.startDate);
+    setEndDate(prevRangeTime.endDate);
+  };
 
   useEffect(() => {
     if (props.openFilter) {
@@ -148,12 +166,12 @@ function FilterOptions(props: FilterOptionsProps) {
     }
   }, [props.openFilter]);
 
-  const handleOpen = () => {
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
+  const handleCloseFilter = () => {
+    props.setOpenFilter(false);
+    setErrorFilters(backupValues.errorFilters);
+    setErrorFilter(backupValues.errorFilter);
+    setInputFields(backupValues.inputFields);
+    setTimeframe(backupValues.timeframe);
   };
 
   const handleCustomSelect = () => {
@@ -166,17 +184,13 @@ function FilterOptions(props: FilterOptionsProps) {
     }
   }
 
-  const handleCloseFilter = () => {
-    props.setOpenFilter(false);
-    setErrorFilters(backupValues.errorFilters);
-    setErrorFilter(backupValues.errorFilter);
-    setInputFields(backupValues.inputFields);
-    setTimeframe(backupValues.timeframe);
+  const handleSelectTime = (event: SelectChangeEvent<string>) => {
+    setPrevTimeframe(timeframe);
+    setTimeframe(event.target.value);
   };
 
   const handleFormChange = (index: number, event: SelectChangeEvent<string> | React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, tempData: InputField[]) => {
     console.log("Change in filters, field, value:", event.target.name, event.target.value);
-    console.log("Filter appearences", filterAppearences);
     let data = [...tempData];
     let newValue = event.target.value;
     console.log("Previous value of field", event.target.name, data[index][event.target.name as keyof InputField]);
@@ -263,8 +277,8 @@ function FilterOptions(props: FilterOptionsProps) {
   }
 
   const addFields = () => {
-    let newfield = { boolOp: 'None', Field: 'None', Operation: 'None', Value: '' };
-    let newError = { boolOp: false, Field: false, Operation: false, Value: false };
+    let newfield = { Field: 'None', Operation: 'None', Value: '' };
+    let newError = { Field: false, Operation: false, Value: false };
     setErrorFilters([...errorFilters, newError]);
     setInputFields([...inputFields, newfield]);
   }
@@ -301,56 +315,53 @@ function FilterOptions(props: FilterOptionsProps) {
     let tempInputFields = [...inputFields];
     inputFields.forEach((filter, index) => {
       // If any of the necessary fields are empty
-      console.log("All fields", filter, index);
-      if ((((filter.Field === "None" || filter.Operation === "None") && (filter.Field !== "Timestamp")) || (filter.boolOp === "None" && index !== 0))) {
+      if ((filter.Field === "None" || filter.Operation === "None") && filter.Field !== "Timestamp") {
         errorDetected = true;
         tempErrors[index].Field = filter.Field === "None";
         tempErrors[index].Operation = filter.Operation === "None";
-        tempErrors[index].boolOp = filter.boolOp === "None" && index !== 0;
       }
       if (filter.Field === "Timestamp") {
         if (timeframe !== "Custom") {
-          const tempStartDate = dateLimits[timeframe as keyof typeof dateLimits];
-          const tempEndDate = currentTime;
-          tempInputFields[index].Operation = "ge datetime";
-          tempInputFields[index].Value = tempStartDate.utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
-          tempInputFields.push({ boolOp: "and", Field: "Timestamp", Operation: "le datetime", Value: tempEndDate.utc().format("YYYY-MM-DDTHH:mm:ss.SSS[Z]")})
+          const tempStartDate = dateLimits[timeframe as keyof DateLimits].clone();
+          const tempEndDate = currentTime.clone();
+          tempInputFields[index].Operation = ">=";
+          tempInputFields[index].Value = tempStartDate.toDate();
+          tempInputFields.push({ Field: "Timestamp", Operation: "<=", Value: tempEndDate.toDate() })
         } else {
           const tempStartDate = moment(startDate);
           const tempEndDate = moment(endDate);
-          tempInputFields[index].Operation = "ge datetime";
-          tempInputFields[index].Value = tempStartDate.utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
-          tempInputFields.push({ boolOp: "and", Field: "Timestamp", Operation: "le datetime", Value: tempEndDate.utc().format("YYYY-MM-DDTHH:mm:ss.SSS[Z]")})
+          tempInputFields[index].Operation = ">=";
+          tempInputFields[index].Value = tempStartDate.toDate();
+          tempInputFields.push({ Field: "Timestamp", Operation: "<=", Value: tempEndDate.toDate() })
         }
       }
     })
     if (errorDetected) {
-      console.log("Temp errors and temp Input fields", tempErrors, tempInputFields);
       setErrorFilters(tempErrors);
       setErrorFilter(true);
     } else {
       console.log("Temp input fields", tempInputFields);
-      onAdvancedFilter(tempInputFields);
+      onAdvancedFilter(tempInputFields as FirebaseFilter[]);
       props.setOpenFilter(false);
     }
   }
 
   const handleDeleteFilter = () => {
     setInputFields([
-      { boolOp: 'None', Field: 'None', Operation: 'None', Value: '' }]);
+      { Field: 'None', Operation: 'None', Value: '' }]);
     setErrorFilters([
-      { boolOp: false, Field: false, Operation: false, Value: false }
-    ]);
+      { Field: false, Operation: false, Value: false }
+    ])
     setErrorFilter(false);
     setFilterAppearences({
-      rowKey: { equality: 0, inequality: 0, count: 0 },
-      Description: { equality: 0, inequality: 0, count: 0 },
       Timestamp: { equality: 0, inequality: 0, count: 0 },
-      Event_Name: { equality: 0, inequality: 0, count: 0 },
-      Metric_Name: { equality: 0, inequality: 0, count: 0 },
+      rowKey: { equality: 0, inequality: 0, count: 0 },
+      anomalyType: { equality: 0, inequality: 0, count: 0 },
+      Server_ID: { equality: 0, inequality: 0, count: 0 },
+      value: { equality: 0, inequality: 0, count: 0 },
       General: { equality: 0, inequality: 0, count: 0 },
       None: { equality: 0, inequality: 0, count: 0 }
-    })
+    });
     setPrevTimeframe("Last Hour");
     setTimeframe("Last Hour");
     setErrorDate(false);
@@ -366,11 +377,6 @@ function FilterOptions(props: FilterOptionsProps) {
     clearFilters();
     props.setOpenFilter(false);
   }
-
-  const handleSelectTime = (event: SelectChangeEvent<string>) => {
-    setPrevTimeframe(timeframe);
-    setTimeframe(event.target.value);
-  };
 
   return (
     <Box sx={{ alignItems: "center", display: "flex" }}>
@@ -417,37 +423,13 @@ function FilterOptions(props: FilterOptionsProps) {
         <DialogTitle>Select Filters</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ marginBottom: 2 }}>
-            {'You can perform filters on all columns'}
+            {'You can perform range (<, <=, >, >=) or not equals (!=) comparisons only on a single field. NOTE: Timestamp counts as having a range comparison. The field that has a range or not equals comparison will be the only one where you can perform a sort operation.'}
           </DialogContentText>
           <TransitionGroup>
             {inputFields.map((input, index) => {
               return (
                 <Collapse key={index}>
-                  <Grid2 container direction={"row"} key={index} spacing={2} sx={{ justifyContent: "center", marginBottom: 2}}>
-                    {index !== 0 ? (
-                      <Grid2 sx={{ width: "100px" }}>
-                        <FormControl error={errorFilters[index].boolOp}>
-                          <InputLabel id="field-select">Operator</InputLabel>
-                          <Select
-                            labelId="field-select"
-                            name="boolOp"
-                            id="demo-select-small"
-                            value={input.boolOp}
-                            label="Operator"
-                            onChange={event => handleFormChange(index, event, inputFields)}
-                            sx={{ width: "90px" }}
-                          >
-                            <MenuItem value="None">
-                              <em>None</em>
-                            </MenuItem>
-                            <MenuItem value="and">And</MenuItem>
-                            <MenuItem value="or">Or</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid2>
-                    ) : (
-                      <Box sx={{ width: "100px", height: "40px" }} />
-                    )}
+                  <Grid2 container direction={"row"} key={index} spacing={2} sx={{ justifyContent: "center", marginBottom: 2 }}>
                     <Grid2>
                       <FormControl error={errorFilters[index].Field}>
                         <InputLabel id="field-select">Field</InputLabel>
@@ -463,24 +445,24 @@ function FilterOptions(props: FilterOptionsProps) {
                           <MenuItem value="None">
                             <em>None</em>
                           </MenuItem>
-                          <MenuItem value="rowKey">Alert ID</MenuItem>
-                          <MenuItem value="Timestamp">Timestamp</MenuItem>
-                          <MenuItem value="Description">Description</MenuItem>
-                          <MenuItem value="Metric_Name">Metric</MenuItem>
-                          <MenuItem value="Event_Name">Status</MenuItem>
+                          {((filterAppearences.Timestamp.count < 1 && filterAppearences.General.inequality === 0) || (input.Field === "Timestamp" || (filterAppearences[input.Field as keyof FilterAppearences].inequality < 2 && filterAppearences[input.Field as keyof FilterAppearences].inequality === filterAppearences.General.inequality))) && (<MenuItem value="Timestamp">Timestamp</MenuItem>)}
+                          <MenuItem value="rowKey">Anomally ID</MenuItem>
+                          <MenuItem value="Server_ID">Server</MenuItem>
+                          <MenuItem value="anomalyType">Metric</MenuItem>
+                          <MenuItem value="value">Value</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid2>
                     {input.Field === "Timestamp" ? (
                       <Grid2>
                         <FormControl sx={{ width: 300 }}>
-                          <InputLabel id="Timestamp-label">Timestamp</InputLabel>
+                          <InputLabel id="timestamp-label">Timestamp</InputLabel>
                           <Select
-                            labelId="Timestamp-label"
-                            id="Timestamp-select"
-                            name="Timestamp"
+                            labelId="timestamp-label"
+                            id="timestamp-select"
+                            name="timeframe"
                             value={timeframe}
-                            label="Timestamp"
+                            label="Timeframe"
                             onChange={handleSelectTime}
                           >
                             {timeframes.map((currTimeframe) => {
@@ -510,25 +492,42 @@ function FilterOptions(props: FilterOptionsProps) {
                         <Grid2>
                           <FormControl error={errorFilters[index].Operation}>
                             <InputLabel id="operaction-select">Operation</InputLabel>
-                            <Select
-                              labelId="operaction-select"
-                              name="Operation"
-                              id="demo-select-small"
-                              value={input.Operation}
-                              label="Operation"
-                              onChange={event => handleFormChange(index, event, inputFields)}
-                              sx={{ width: 140 }}
-                            >
-                              <MenuItem value="None">
-                                <em>None</em>
-                              </MenuItem>
-                              <MenuItem value="eq">(==) equal to</MenuItem>
-                              <MenuItem value="ne">(!=) not equal to</MenuItem>
-                              <MenuItem value="gt">{"(>) greater than"}</MenuItem>
-                              <MenuItem value="ge">{"(>=) greater than or equal to"}</MenuItem>
-                              <MenuItem value="lt">{"(<) less than"}</MenuItem>
-                              <MenuItem value="le">{"(<=) less than or equal to"}</MenuItem>
-                            </Select>
+                            {((input.Field === "None" || filterAppearences.General.inequality <= filterAppearences[input.Field as keyof FilterAppearences].inequality) || (input.Operation !== "None" && input.Operation !== "==")) ? (
+                              <Select
+                                labelId="operaction-select"
+                                name="Operation"
+                                id="demo-select-small"
+                                value={input.Operation}
+                                label="Operation"
+                                onChange={event => handleFormChange(index, event, inputFields)}
+                                sx={{ width: 140 }}
+                              >
+                                <MenuItem value="None">
+                                  <em>None</em>
+                                </MenuItem>
+                                <MenuItem value="==">(==) equal to</MenuItem>
+                                <MenuItem value="!=">(!=) not equal to</MenuItem>
+                                <MenuItem value=">">{"(>) greater than"}</MenuItem>
+                                <MenuItem value=">=">{"(>=) greater than or equal to"}</MenuItem>
+                                <MenuItem value="<">{"(<) less than"}</MenuItem>
+                                <MenuItem value="<=">{"(<=) less than or equal to"}</MenuItem>
+                              </Select>
+                            ) : (
+                              <Select
+                                labelId="operaction-select"
+                                name="Operation"
+                                id="demo-select-small"
+                                value={input.Operation}
+                                label="Operation"
+                                onChange={event => handleFormChange(index, event, inputFields)}
+                                sx={{ width: 140 }}
+                              >
+                                <MenuItem value="None">
+                                  <em>None</em>
+                                </MenuItem>
+                                <MenuItem value="==">(==) equal to</MenuItem>
+                              </Select>
+                            )}
                           </FormControl>
                         </Grid2>
                         <Grid2>
@@ -597,4 +596,4 @@ function FilterOptions(props: FilterOptionsProps) {
   );
 };
 
-export default FilterOptions;
+export default TableFilterOptions;

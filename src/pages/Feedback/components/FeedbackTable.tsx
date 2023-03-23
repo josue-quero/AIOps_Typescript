@@ -21,8 +21,10 @@ import Collapse from '@mui/material/Collapse';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import { Circle as CircleIcon } from '@mui/icons-material';
-import TableFilterOptions from "../../../common/TableFilterOptions";
-import EnhancedTableToolbar from "../../Alerts/EnhancedTableToolbar";
+import TableFilterOptions from "common/TableFilterOptions";
+import EnhancedTableToolbar from "pages/Alerts/components/EnhancedTableToolbar";
+import { ExcelRow, Row, Filter } from "../Feedback";
+import { OrderByDirection } from "firebase/firestore";
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
     [`&.${tableCellClasses.head}`]: {
@@ -52,17 +54,27 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
     },
 }));
 
-function TablePaginationActions(props) {
+type TablePaginationProps = {
+    count: number;
+    page: number;
+    rowsPerPage: number;
+    onPageChange: (
+        event: React.MouseEvent<HTMLButtonElement>,
+        newPage: number,
+    ) => void;
+}
+
+function TablePaginationActions(props: TablePaginationProps) {
     const theme = useTheme();
     const { count, page, rowsPerPage, onPageChange } = props;
 
     console.log("TablePaginationActions", page);
 
-    const handleBackButtonClick = (event) => {
+    const handleBackButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         onPageChange(event, page - 1);
     };
 
-    const handleNextButtonClick = (event) => {
+    const handleNextButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         onPageChange(event, page + 1);
     };
 
@@ -85,14 +97,12 @@ function TablePaginationActions(props) {
     );
 }
 
-TablePaginationActions.propTypes = {
-    count: PropTypes.number.isRequired,
-    onPageChange: PropTypes.func.isRequired,
-    page: PropTypes.number.isRequired,
-    rowsPerPage: PropTypes.number.isRequired,
-};
+type RowProps = {
+    row: Row;
+    key: number;
+}
 
-function Row(props) {
+function Row(props: RowProps) {
     const { row } = props;
     const [open, setOpen] = React.useState(false);
 
@@ -148,12 +158,12 @@ function Row(props) {
                                                             alignItems: 'center',
                                                         }}
                                                     >
-                                                        <span style={{ width: 80 }}>{feedbackColor[feedbackRow.feedback][1]} </span>
+                                                        <span style={{ width: 80 }}>{feedbackColor[feedbackRow.feedback as keyof typeof feedbackColor][1]} </span>
                                                         <CircleIcon
                                                             sx={{
                                                                 fontSize: '1.2rem',
                                                                 marginLeft: '4px',
-                                                                color: feedbackColor[feedbackRow.feedback][0],
+                                                                color: feedbackColor[feedbackRow.feedback as keyof typeof feedbackColor][0],
                                                             }}
                                                         />
                                                     </div>
@@ -171,24 +181,23 @@ function Row(props) {
     );
 }
 
-Row.propTypes = {
-    row: PropTypes.shape({
-        anomalyID: PropTypes.string.isRequired,
-        server: PropTypes.string.isRequired,
-        metric: PropTypes.string.isRequired,
-        timestamp: PropTypes.string.isRequired,
-        value: PropTypes.number.isRequired,
-        feedback: PropTypes.arrayOf(
-            PropTypes.shape({
-                user: PropTypes.string.isRequired,
-                feedback: PropTypes.number.isRequired,
-            }),
-        ).isRequired,
-        feedbackCount: PropTypes.number.isRequired,
-    }).isRequired,
-};
+type FeedbackTableProps = {
+    handleDownload: () => Promise<ExcelRow[]>;
+    data: Row[];
+    count: number;
+    start: number;
+    docsPerQuery: number;
+    onNextPage: () => Promise<void>;
+    onPrevPage: () => Promise<void>;
+    loading: boolean;
+    onAdvancedFilter: (filters: Filter[]) => void;
+    onRequestSort: () => void;
+    orderBy: string;
+    order: OrderByDirection;
+    clearFilters: () => void;
+}
 
-function FeedbackTable(props) {
+const FeedbackTable = (props: FeedbackTableProps) => {
     const [filterOptions, setFilterOptions] = useState(false);
     const onRequestSort = props.onRequestSort;
     const [page, setPage] = useState(0);
@@ -207,7 +216,7 @@ function FeedbackTable(props) {
         }
     }, [props.data])
 
-    const handleChangePage = (event, newPage) => {
+    const handleChangePage = (event: unknown, newPage: number) => {
         console.log("Page to", newPage);
         let newStart = newPage * rowsPerPage;
         console.log("Start from", newStart);
@@ -225,10 +234,10 @@ function FeedbackTable(props) {
         setPage(newPage);
     };
 
-    const handleChangeRowsPerPage = (event) => {
+    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
         console.log("Changed rows per page", event.target.value);
-        console.log("New page", parseInt(((page * rowsPerPage) / event.target.value), 10));
-        setPage(parseInt(((page * rowsPerPage) / event.target.value), 10));
+        console.log("New page", (page * rowsPerPage) / parseInt(event.target.value, 10));
+        setPage((page * rowsPerPage) / parseInt(event.target.value, 10));
         setRowsPerPage(parseInt(event.target.value, 10));
     };
 
@@ -236,13 +245,13 @@ function FeedbackTable(props) {
         setFilterOptions((prev) => !prev);
     }
 
-    const createSortHandler = (property) => (event) => {
-        onRequestSort(event, property);
+    const createSortHandler = () => {
+        onRequestSort();
     };
 
     return (
         <Paper sx={{ width: "100%", mb: 2, overflow: "hidden" }}>
-            <EnhancedTableToolbar filterOptions={filterOptions} handleHideOptions={handleHideOptions} handleDownload={props.handleDownload} title={'Feedback'}/>
+            <EnhancedTableToolbar filterOptions={filterOptions} handleHideOptions={handleHideOptions} handleDownload={props.handleDownload} title={'Feedback'} />
             <TableFilterOptions clearFilters={props.clearFilters} onAdvancedFilter={props.onAdvancedFilter} openFilter={filterOptions} setOpenFilter={setFilterOptions} />
             <TableContainer sx={{ maxHeight: "78vh" }}>
                 <Table stickyHeader sx={{ maxHeight: "78vh", height: "78vh" }} aria-label="customized pagination table">
@@ -250,12 +259,13 @@ function FeedbackTable(props) {
                         <TableRow>
                             <StyledTableCell />
                             <StyledTableCell>
+                                {/* NOTE: pointerEvents might not work, originally pointerEvents: props.orderBy !== "rowKey" && 'none'*/}
                                 <TableSortLabel
                                     active={props.orderBy === "rowKey"}
                                     direction={props.order}
-                                    onClick={createSortHandler("rowKey")}
+                                    onClick={createSortHandler}
                                     hideSortIcon={props.orderBy !== "rowKey"}
-                                    sx={{pointerEvents: props.orderBy !== "rowKey" && 'none'}}
+                                    sx={{ pointerEvents: props.orderBy !== "rowKey" ? 'none' : '' }}
                                 >
                                     Anomaly ID
                                 </TableSortLabel>
@@ -264,9 +274,9 @@ function FeedbackTable(props) {
                                 <TableSortLabel
                                     active={props.orderBy === "Server_ID"}
                                     direction={props.order}
-                                    onClick={createSortHandler("Server_ID")}
+                                    onClick={createSortHandler}
                                     hideSortIcon={props.orderBy !== "Server_ID"}
-                                    sx={{pointerEvents: props.orderBy !== "Server_ID" && 'none'}}
+                                    sx={{ pointerEvents: props.orderBy !== "Server_ID" ? 'none' : '' }}
                                 >
                                     Server
                                 </TableSortLabel>
@@ -275,9 +285,9 @@ function FeedbackTable(props) {
                                 <TableSortLabel
                                     active={props.orderBy === "anomalyType"}
                                     direction={props.order}
-                                    onClick={createSortHandler("anomalyType")}
+                                    onClick={createSortHandler}
                                     hideSortIcon={props.orderBy !== "anomalyType"}
-                                    sx={{pointerEvents: props.orderBy !== "anomalyType" && 'none'}}
+                                    sx={{ pointerEvents: props.orderBy !== "anomalyType" ? 'none' : '' }}
                                 >
                                     Metric
                                 </TableSortLabel>
@@ -286,9 +296,9 @@ function FeedbackTable(props) {
                                 <TableSortLabel
                                     active={props.orderBy === "Timestamp"}
                                     direction={props.order}
-                                    onClick={createSortHandler("Timestamp")}
+                                    onClick={createSortHandler}
                                     hideSortIcon={props.orderBy !== "Timestamp"}
-                                    sx={{pointerEvents: props.orderBy !== "Timestamp" && 'none'}}
+                                    sx={{ pointerEvents: props.orderBy !== "Timestamp" ? 'none' : '' }}
                                 >
                                     Timestamp
                                 </TableSortLabel>
@@ -297,9 +307,9 @@ function FeedbackTable(props) {
                                 <TableSortLabel
                                     active={props.orderBy === "value"}
                                     direction={props.order}
-                                    onClick={createSortHandler("value")}
+                                    onClick={createSortHandler}
                                     hideSortIcon={props.orderBy !== "value"}
-                                    sx={{pointerEvents: props.orderBy !== "value" && 'none'}}
+                                    sx={{ pointerEvents: props.orderBy !== "value" ? 'none' : '' }}
                                 >
                                     Value
                                 </TableSortLabel>

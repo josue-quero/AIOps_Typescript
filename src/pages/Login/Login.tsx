@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import './common/AIOpsLogo';
 import React from 'react';
 
 // - styles

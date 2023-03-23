@@ -5,7 +5,7 @@ import React, { useRef, useState } from 'react';
 import useGetAnomalies from './hooks/useGetAnomalies';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import TimeLine from 'pages/TimeLine/TimeLine';
-import Layout from 'common/Layout';
+import Layout from './common/Layout';
 import Alerts from './pages/Alerts/Alerts';
 import AnomalyFeed from './pages/AnomalyFeed/AnomalyFeed';
 import Overview from './pages/Overview/Overview';
