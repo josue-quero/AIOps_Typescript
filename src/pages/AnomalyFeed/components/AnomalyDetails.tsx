@@ -13,9 +13,10 @@ import {
 } from '@mui/icons-material';
 import notFound from '../../../assets/icon.png';
 import moment from 'moment';
-import MainPageGraph from '../../../common/GraphCommon';
+import MainPageGraph from 'common/GraphCommon';
 import { firestore } from '../../../firebase/order-food';
 import Divider from '@mui/material/Divider';
+import { OneHourData, Anomaly } from 'hooks/useGetAnomalies';
 
 const statusColor = {
   '-1': '#f7584d',
@@ -42,19 +43,48 @@ const dataNotFound = (
   </div>
 );
 
-const AnomalyDetails = ({ anomaly, user }) => {
-  const oneHourData = anomaly.one_hour_data;
-  const status = anomaly.status;
-  const timeStr = moment.unix(anomaly.Timestamp.seconds).format('LLLL');
-  const hasClient = anomaly.Client_Name !== undefined;
+type HourData = {
+  x: moment.Moment;
+  y: number;
+  status: number;
+}
+
+type Feedback = {
+  [key: string] : number;
+}
+
+type AnomalyDetailsProps = {
+  anomaly: OneHourData;
+  user: string;
+}
+
+export type Dataset = {
+    data: HourData[];
+    label: string;
+    borderColor: string;
+    fill: boolean;
+    pointBackgroundColor: string[];
+    lineAtIndex: number[];
+    pointRadius: number[];
+  
+}
+
+export type Data = {
+  datasets: Dataset[];
+}
+
+const AnomalyDetails = (props: AnomalyDetailsProps) => {
+  const oneHourData = props.anomaly.one_hour_data;
+  const status = props.anomaly.status;
+  const timeStr = moment.unix(props.anomaly.Timestamp.seconds).format('LLLL');
+  const hasClient = props.anomaly.Client_Name !== undefined;
   const [isEnabled, setIsEnabled] = useState(true);
 
-
   useEffect(() => {
-    if (anomaly.feedback) {
-      console.log(anomaly.feedback[user]);
-      if (anomaly.feedback[user]) {
-        const enabled = Math.abs(parseInt(anomaly.feedback[user])) !== 1;
+    if (props.anomaly.feedback) {
+      console.log(props.anomaly.feedback[props.user as keyof typeof props.anomaly.feedback]);
+      if (props.anomaly.feedback[props.user as keyof typeof props.anomaly.feedback]) {
+        const enabled = Math.abs(parseInt(props.anomaly.feedback[props.user as keyof typeof props.anomaly.feedback])) !== 1;
         console.log('calc', enabled);
         setIsEnabled(enabled);
       } else {
@@ -63,17 +93,17 @@ const AnomalyDetails = ({ anomaly, user }) => {
     } else {
       setIsEnabled(true);
     }
-  }, [anomaly, user]);
+  }, [props.anomaly, props.user]);
 
-  let hourData = [];
-  let pointColors = [];
-  let indexLines = [];
+  let hourData: HourData[] = [];
+  let pointColors: string[] = [];
+  let indexLines: number[] = [];
 
   if (oneHourData) {
     hourData = oneHourData.map((item, idx) => {
       if (item.Anomaly) {
         indexLines.push(idx);
-        pointColors.push(statusColor[status === null ? 2 : status]);
+        pointColors.push(statusColor[status === null ? 2 : status as keyof typeof statusColor]);
       } else {
         pointColors.push('rgba(106,160,247,0.7)');
       }
@@ -89,30 +119,30 @@ const AnomalyDetails = ({ anomaly, user }) => {
     datasets: [
       {
         data: hourData,
-        label: anomaly.anomalyType,
+        label: props.anomaly.anomalyType,
         borderColor: '#3e95cd',
         fill: false,
         pointBackgroundColor: pointColors,
         lineAtIndex: indexLines,
       },
     ],
-  };
+  } as Data;
 
-  const handleSubmitFeedback = async (event) => {
+  const handleSubmitFeedback = async (event: any) => {
     console.log(event.target.value);
-    const docRef = doc(firestore, 'aiops', anomaly.docId);
+    const docRef = doc(firestore, 'aiops', props.anomaly.docId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      let feedback = {};
+      let feedback = {} as Feedback;
       if (data.feedback) {
         feedback = data.feedback;
       }
       const newFeedback = {
         ...feedback,
       };
-      newFeedback[user] = parseInt(event.target.value);
+      newFeedback[props.user] = parseInt(event.target.value);
       console.log(newFeedback);
       await updateDoc(docRef, {
         feedback: newFeedback,
@@ -126,8 +156,8 @@ const AnomalyDetails = ({ anomaly, user }) => {
     <div style={{ flexGrow: 1, padding: 24, height: "100%" }}>
       <Grid2 justifyContent="space-between" container direction="row" sx={{ width: "100%" }}>
         <Grid2>
-          <Typography variant="h5" display="inline">{anomaly.Server_ID}: </Typography>
-          <Typography variant="h6" display="inline" color="#5A5A5A">{anomaly.anomalyType}</Typography>
+          <Typography variant="h5" display="inline">{props.anomaly.Server_ID}: </Typography>
+          <Typography variant="h6" display="inline" color="#5A5A5A">{props.anomaly.anomalyType}</Typography>
         </Grid2>
         <Grid2 container sx={{ alignItems: "end" }}>
           <Typography variant="h6" display="inline" color="#5A5A5A">{timeStr}</Typography>
@@ -137,7 +167,7 @@ const AnomalyDetails = ({ anomaly, user }) => {
       <Grid2 container direction="column" sx={{ width: '100%', height: "100%", alignItems: "center" }} justifyContent="space-around">
         <Grid2 sx={{ display: 'flex', justifyContent: 'center', flexGrow: 1, width: "90%", height: "100%" }}>
           {oneHourData && (
-            <MainPageGraph tableData={[]} metricName={anomaly.anomalyType} data={data} unit='minute' aspectRatio={true} detailsMode={false} serverName={anomaly.Server_ID} />
+            <MainPageGraph tableData={[]} metricName={props.anomaly.anomalyType} data={data} unit='minute' aspectRatio={true} detailsMode={false} serverName={props.anomaly.Server_ID} graphAnimation={true} mode={'point'} />
           )}
           {!oneHourData && (dataNotFound)}
         </Grid2>
@@ -149,7 +179,7 @@ const AnomalyDetails = ({ anomaly, user }) => {
                   {"Client: "}
                 </Typography>
                 <Typography display="inline" variant="body1">
-                  {anomaly.Client_Name}
+                  {props.anomaly.Client_Name}
                 </Typography>
               </>
             )}

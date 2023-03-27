@@ -23,14 +23,14 @@ interface TempUser {
     topic: string[] | undefined;
 }
 
-interface Anomaly {
+export interface Anomaly {
     Anomaly: boolean;
     Date: {seconds: number, nanoseconds: number};
     Status: number;
     Value: number;
 }
 
-interface OneHourData {
+export interface OneHourData {
     docId: string;
     Client_Name: string;
     OS: string;
@@ -44,6 +44,7 @@ interface OneHourData {
     status: null | number;
     topic: string;
     value: number;
+    feedback: {}
 }
 
 const useGetAnomalies = (

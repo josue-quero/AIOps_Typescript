@@ -15,25 +15,32 @@ import Fade from '@mui/material/Fade';
 import Typography from '@mui/material/Typography';
 import { TransitionGroup } from 'react-transition-group';
 import Collapse from '@mui/material/Collapse';
+import { OneHourData } from 'hooks/useGetAnomalies';
 
-const AnomalyFeed = ({ anomalies, resetChanges, user }) => {
+type AnomalyFeedProps = {
+  anomalies: OneHourData[] | null;
+  resetChanges: () => void;
+  user: string;
+}
+
+const AnomalyFeed = (props: AnomalyFeedProps) => {
   const [anomalyIdx, setAnomalyIdx] = useState(-1);
 
-  const handleClick = (anomalyIdx) => {
+  const handleClick = (anomalyIdx: number) => {
     setAnomalyIdx(anomalyIdx);
   };
 
   useEffect(() => {
     console.log("Resetting changes from timeline");
-    resetChanges();
-  }, [anomalies]);
+    props.resetChanges();
+  }, [props.anomalies]);
 
   return (
     <div>
-      {anomalies !== null ? (
+      {props.anomalies !== null ? (
         <Fade in={true} {...({ timeout: 1000 })}>
           <Box sx={{ display: 'flex', overflow: 'hidden' }}>
-            {anomalies.length > 0 ? (<>
+            {props.anomalies.length > 0 ? (<>
               <List
                 sx={{
                   width: '100%',
@@ -43,10 +50,10 @@ const AnomalyFeed = ({ anomalies, resetChanges, user }) => {
                 }}
               >
                 <TransitionGroup>
-                  {anomalies.map((anomaly, idx) => {
+                  {props.anomalies.map((anomaly, idx) => {
                     let isSelected = false;
-                    if (anomaly && anomalyIdx !== -1) {
-                      isSelected = anomaly.docId === anomalies[anomalyIdx].docId;
+                    if (anomaly && anomalyIdx !== -1 && props.anomalies !== null) {
+                      isSelected = anomaly.docId === props.anomalies[anomalyIdx].docId;
                     }
                     return (
                       <Collapse key={anomaly.docId}>
@@ -54,7 +61,7 @@ const AnomalyFeed = ({ anomalies, resetChanges, user }) => {
                           key={anomaly.docId}
                           onClick={() => handleClick(idx)}
                           selected={isSelected}
-                          sx={{ ...(idx === 0 ? { borderTop: "1px solid #808080", borderBottom: "1px solid #808080" } : { borderBottom: "1px solid #808080" }), ...(anomaly.feedback !== undefined ? anomaly.feedback[user] !== undefined ? {} : { borderLeft: '4px solid #6aa0f7' } : { borderLeft: '4px solid #6aa0f7' }) }}
+                          sx={{ ...(idx === 0 ? { borderTop: "1px solid #808080", borderBottom: "1px solid #808080" } : { borderBottom: "1px solid #808080" }), ...(anomaly.feedback !== undefined ? anomaly.feedback[props.user as keyof typeof anomaly.feedback] !== undefined ? {} : { borderLeft: '4px solid #6aa0f7' } : { borderLeft: '4px solid #6aa0f7' }) }}
                         >
                           <ListItemAvatar>
                             <Avatar>
@@ -63,7 +70,7 @@ const AnomalyFeed = ({ anomalies, resetChanges, user }) => {
                           </ListItemAvatar>
                           {anomaly.feedback !== undefined ? (<>
                             {
-                              anomaly.feedback[user] !== undefined ? (
+                              anomaly.feedback[props.user as keyof typeof anomaly.feedback] !== undefined ? (
                                 <ListItemText
                                   primary={anomaly.Server_ID}
                                   secondary={anomaly.anomalyType}
@@ -101,7 +108,7 @@ const AnomalyFeed = ({ anomalies, resetChanges, user }) => {
                 </TransitionGroup>
               </List>
               {anomalyIdx > -1 && (
-                <AnomalyDetails anomaly={anomalies[anomalyIdx]} user={user} />
+                <AnomalyDetails anomaly={props.anomalies[anomalyIdx]} user={props.user} />
               )}
             </>
             ) : (

@@ -164,7 +164,7 @@ function App() {
                 <AnomalyFeed
                   anomalies={anomalies}
                   resetChanges={resetChanges}
-                  user={user.email}
+                  user={user.email as string}
                 />
               ) : (
                 <Navigate to='/' />
